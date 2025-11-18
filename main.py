@@ -40,7 +40,9 @@ def create_ui(root: tk.Tk):
     display.grid(row=0, column=0, columnspan=3, sticky="we", pady=(0, 6))
 
     status = tk.Label(main_frame, text="Готово", anchor="w")
-    status.grid(row=3, column=0, columnspan=3, sticky="we", pady=(8, 0))
+    status.grid(row=5, column=0, columnspan=3, sticky="we", pady=(8, 0))
+
+    memory = {"value": 0.0}
 
     # Вспомогательные функции
     def set_status(text: str):
@@ -79,6 +81,26 @@ def create_ui(root: tk.Tk):
             display.delete(0, tk.END)
             display.insert(0, "Error")
             set_status(f"cos: {e}")
+    def on_subtract():
+        insert_text("-")
+        set_status("Вставлен '-'")
+
+    def on_divide():
+        insert_text("/")
+        set_status("Вставлен '/'")
+
+    def on_power():
+        insert_text("**")
+        set_status("Вставлен '**' (степень)")
+
+    def on_sin():
+        try:
+            val = parse_display_value()
+            res = math.sin(val)
+        except Exception as e:
+            display.delete(0, tk.END)
+            display.insert(0, "Error")
+            set_status(f"sin: {e}")
             return
         if float(res).is_integer():
             display.delete(0, tk.END)
@@ -119,6 +141,66 @@ def create_ui(root: tk.Tk):
         display.delete(0, tk.END)
         display.insert(0, str(res))
         set_status("ceil выполнен")
+        set_status("sin вычислен")
+
+    def on_floor():
+        try:
+            val = parse_display_value()
+            res = math.floor(val)
+        except Exception as e:
+            display.delete(0, tk.END)
+            display.insert(0, "Error")
+            set_status(f"floor: {e}")
+            return
+        display.delete(0, tk.END)
+        display.insert(0, str(res))
+        set_status("floor выполнен")
+
+    mem_menu = tk.Menu(root, tearoff=0)
+
+    def mem_add():
+        try:
+            val = parse_display_value()
+            memory["value"] += val
+            set_status(f"M+ : {memory['value']}")
+        except Exception as e:
+            set_status(f"M+: {e}")
+
+    def mem_sub():
+        try:
+            val = parse_display_value()
+            memory["value"] -= val
+            set_status(f"M- : {memory['value']}")
+        except Exception as e:
+            set_status(f"M-: {e}")
+
+    def mem_recall():
+        display.delete(0, tk.END)
+        v = memory["value"]
+        if float(v).is_integer():
+            display.insert(0, str(int(v)))
+        else:
+            display.insert(0, str(v))
+        set_status("MR: значение вставлено")
+
+    def mem_clear():
+        memory["value"] = 0.0
+        set_status("MC: память очищена")
+
+    mem_menu.add_command(label="M+", command=mem_add)
+    mem_menu.add_command(label="M-", command=mem_sub)
+    mem_menu.add_command(label="MR", command=mem_recall)
+    mem_menu.add_command(label="MC", command=mem_clear)
+
+    def on_memory_button(event=None, widget=None):
+        if widget is None:
+            widget = root
+        try:
+            x = widget.winfo_rootx()
+            y = widget.winfo_rooty() + widget.winfo_height()
+            mem_menu.tk_popup(x, y)
+        finally:
+            mem_menu.grab_release()
 
     buttons = []
     for index, label in enumerate(BUTTON_LABELS):
@@ -145,6 +227,18 @@ def create_ui(root: tk.Tk):
             btn.config(command=on_sqrt)
         elif label == "ceil":
             btn.config(command=on_ceil)
+        if label == "-":
+            btn.config(command=on_subtract)
+        elif label == "/":
+            btn.config(command=on_divide)
+        elif label == "sin":
+            btn.config(command=on_sin)
+        elif label == "^":
+            btn.config(command=on_power)
+        elif label == "floor":
+            btn.config(command=on_floor)
+        elif label == "M":
+            btn.bind("<Button-1>", lambda e, w=btn: on_memory_button(e, w))
 
         btn.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
         buttons.append(btn)
@@ -182,6 +276,7 @@ def create_ui(root: tk.Tk):
         "root": root,
         "display": display,
         "buttons": buttons,
+        "memory": memory,
         "status": status,
     }
 
@@ -189,9 +284,7 @@ def create_ui(root: tk.Tk):
 def main():
     root = tk.Tk()
     ui = create_ui(root)
-
     ui["display"].focus_set()
-
     root.mainloop()
 
 
