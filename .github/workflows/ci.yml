@@ -61,7 +61,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-windows-exe
-          path: dist/main.exe
+          path: |
+            tncripo_calc/dist/tncripo_calc.exe
+            tncripo_calc/dist/main.exe
+            dist/tncripo_calc.exe
+            dist/main.exe
+          retention-days: 7
 
   build-deb:
     runs-on: ubuntu-latest
@@ -87,38 +92,47 @@ jobs:
 
       - name: Build linux standalone binary with PyInstaller
         run: |
-          # ensure clean per-project build directories
-          rm -rf tncripo_calc/dist tncripo_calc/build tncripo_calc/*.spec || true
-          # run pyinstaller inside project dir so it finds main.py and resources
-          cd tncripo_calc
-          pyinstaller --onefile --name tncripo_calc main.py
-          echo "PyInstaller exit code: $?"
-          echo "Listing tncripo_calc/dist:"
-          ls -la dist || true
+          set -e
+          # detect project dir: prefer tncripo_calc if exists, otherwise root
+          if [ -d "tncripo_calc" ]; then SRC_DIR=tncripo_calc; else SRC_DIR=.; fi
+          echo "Using SRC_DIR=${SRC_DIR}"
+          # remove previous per-project build output
+          rm -rf "${SRC_DIR}/dist" "${SRC_DIR}/build" "${SRC_DIR}"/*.spec || true
+          # run PyInstaller as a module and explicitly set output locations (no cd)
+          python3 -m PyInstaller --onefile --name tncripo_calc "${SRC_DIR}/main.py" --distpath "${SRC_DIR}/dist" --workpath "${SRC_DIR}/build" --specpath "${SRC_DIR}"
+          PYR=$?
+          echo "PyInstaller exit code: ${PYR}"
+          echo "Listing ${SRC_DIR}/dist:"
+          ls -la "${SRC_DIR}/dist" || true
         shell: bash
 
       - name: Prepare deb package layout for GUI app
         run: |
           set -e
+          # detect project dir like above
+          if [ -d "tncripo_calc" ]; then SRC_DIR=tncripo_calc; else SRC_DIR=.; fi
           PKGDIR=$(pwd)/package
-          BINPATH=$(pwd)/tncripo_calc/dist/tncripo_calc
+          DIST_DIR="${SRC_DIR}/pyinstaller_dist"
+          BINPATH="${DIST_DIR}/tncripo_calc"
 
           echo "Checking for built binary at ${BINPATH}"
           if [ ! -f "${BINPATH}" ]; then
-            echo "ERROR: PyInstaller did not produce binary at ${BINPATH}"
-            echo "Contents of tncripo_calc/dist:"
-            ls -la tncripo_calc/dist || true
+            echo "ERROR: PyInstaller binary not found at ${BINPATH}"
+            echo "Listing ${DIST_DIR}:"
+            ls -la "${DIST_DIR}" || true
+            echo "Listing ${SRC_DIR}:"
+            ls -la "${SRC_DIR}" || true
             exit 1
           fi
 
           rm -rf "${PKGDIR}"
           mkdir -p "${PKGDIR}/usr/local/bin"
           mkdir -p "${PKGDIR}/usr/share/applications"
+          mkdir -p "${PKGDIR}/usr/share/icons/hicolor/256x256/apps"
           mkdir -p "${PKGDIR}/usr/share/doc/tncripo-calc"
 
-          # copy the PyInstaller-built binary
-          cp "${BINPATH}" "${PKGDIR}/usr/local/bin/tncripo_calc"
-          chmod 755 "${PKGDIR}/usr/local/bin/tncripo_calc"
+          # copy the PyInstaller-built binary using install for correct permissions
+          install -m 755 "${BINPATH}" "${PKGDIR}/usr/local/bin/tncripo_calc"
 
           # create a .desktop file so the GUI shows in menus
           cat > "${PKGDIR}/usr/share/applications/tncripo-calc.desktop" <<EOF
@@ -150,7 +164,6 @@ jobs:
           Depends: libc6 (>= 2.17)
           EOF
 
-          # ensure permissions and ownership (chown may need sudo)
           chmod -R 755 "${PKGDIR}"
           sudo chown -R root:root "${PKGDIR}" || true
         shell: bash
