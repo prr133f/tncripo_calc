@@ -20,10 +20,14 @@ jobs:
         run: uv venv --python 3.12
 
       - name: Install dependencies and pytest
-        run: uv pip install -e . pytest
+        run: |
+          source .venv/bin/activate
+          uv pip install -e . pytest
 
       - name: Run tests
-        run: pytest -q tests
+        run: |
+          source .venv/bin/activate
+          pytest -q tests
 
   build-exe:
     runs-on: windows-latest
@@ -39,7 +43,9 @@ jobs:
         run: uv venv --python 3.12
 
       - name: Install dependencies and PyInstaller
-        run: uv pip install -e . pyinstaller
+        run: |
+          . .venv/Scripts/activate
+          uv pip install -e . pyinstaller
 
       - name: Build EXE
         run: |
@@ -71,7 +77,9 @@ jobs:
         run: uv venv --python 3.12
 
       - name: Install dependencies and stdeb
-        run: uv pip install -e . stdeb
+        run: |
+          source .venv/bin/activate
+          uv pip install -e . stdeb
 
       - name: Build .deb package
         run: |
