@@ -65,22 +65,26 @@ jobs:
 
       - name: Build exe with PyInstaller
         run: |
-          # clean previous builds
-          if exist dist rmdir /s /q dist
-          if exist build rmdir /s /q build
+          # clean previous builds (remove any per-project dist/build if present)
+          if exist tncripo_calc\dist rmdir /s /q tncripo_calc\dist
+          if exist tncripo_calc\build rmdir /s /q tncripo_calc\build
           if exist tncripo_calc.spec del /f /q tncripo_calc.spec || true
-          pyinstaller --onefile --name tncripo_calc tncripo_calc\main.py
+          cd tncripo_calc && pyinstaller --onefile --name tncripo_calc main.py
         shell: cmd
 
-      - name: List dist directory
-        run: dir dist
+      - name: List repo and tncripo_calc dist directory (debug)
+        run: |
+          echo "Repo root files:"
+          dir
+          echo "tncripo_calc dist:"
+          dir tncripo_calc\dist
         shell: cmd
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: tncripo_calc-windows-exe
-          path: dist/tncripo_calc.exe
+          path: tncripo_calc/dist/tncripo_calc.exe
           retention-days: 7
 
   build-deb:
@@ -105,8 +109,11 @@ jobs:
 
       - name: Build linux standalone binary with PyInstaller
         run: |
-          rm -rf dist build tncripo_calc.spec || true
-          pyinstaller --onefile --name tncripo_calc tncripo_calc/main.py
+          # remove any previous per-project build output
+          rm -rf tncripo_calc/dist tncripo_calc/build tncripo_calc/tncripo_calc.spec || true
+          cd tncripo_calc && pyinstaller --onefile --name tncripo_calc main.py
+          # debug: list the generated files
+          ls -lh tncripo_calc/dist || true
 
       - name: Prepare deb package layout
         run: |
@@ -117,7 +124,7 @@ jobs:
           mkdir -p ${PKGDIR}/usr/local/bin
           mkdir -p ${PKGDIR}/DEBIAN
           # copy binary
-          cp dist/${BINNAME} ${PKGDIR}/usr/local/bin/${BINNAME}
+          cp tncripo_calc/dist/${BINNAME} ${PKGDIR}/usr/local/bin/${BINNAME}
           chmod 755 ${PKGDIR}/usr/local/bin/${BINNAME}
           # create simple control file
           cat > ${PKGDIR}/DEBIAN/control <<EOF
@@ -142,7 +149,9 @@ jobs:
           # move artifacts to known location
           mkdir -p out
           mv ${OUT} out/
-          cp dist/tncripo_calc out/ || true
+          cp tncripo_calc/dist/tncripo_calc out/ || true
+          # debug: show created artifacts
+          ls -lh out || true
           # also create a stable deb name for release attachment
           if [ -f out/${OUT} ]; then cp out/${OUT} out/tncripo_calc.deb; fi
 
