@@ -16,10 +16,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Python and install deps with uv
-        run: |
-          uv python install 3.11
-          uv pip install --system . pytest
+      - name: Create virtual environment with Python 3.11
+        run: uv venv --python 3.11
+
+      - name: Install dependencies and pytest
+        run: uv pip install -e . pytest
 
       - name: Run tests
         run: pytest -q tests
@@ -34,13 +35,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
-      - name: Set up Python and install deps
-        run: |
-          uv python install 3.11
-          uv pip install -e . pyinstaller
+      - name: Create virtual environment with Python 3.11
+        run: uv venv --python 3.11
+
+      - name: Install dependencies and PyInstaller
+        run: uv pip install -e . pyinstaller
 
       - name: Build EXE
-        run: pyinstaller --onefile --console main.py
+        run: |
+          . .venv/Scripts/activate
+          pyinstaller --onefile --console main.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
@@ -63,13 +67,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
-      - name: Set up Python and install build deps
-        run: |
-          uv python install 3.11
-          uv pip install -e . stdeb
+      - name: Create virtual environment with Python 3.11
+        run: uv venv --python 3.11
+
+      - name: Install dependencies and stdeb
+        run: uv pip install -e . stdeb
 
       - name: Build .deb package
-        run: python setup.py --command-packages=stdeb.command bdist_deb
+        run: |
+          source .venv/bin/activate
+          python setup.py --command-packages=stdeb.command bdist_deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
