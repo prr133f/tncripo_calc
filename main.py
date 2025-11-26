@@ -29,7 +29,7 @@ def safe_eval(expr: str):
         raise ValueError(f"Ошибка вычисления: {e}") from e
 
 
-def create_ui(root: tk.Tk) -> Dict[str, Any]:
+def create_ui(root: tk.Tk):
     root.title("Калькулятор")
     root.resizable(False, False)
 
@@ -61,6 +61,26 @@ def create_ui(root: tk.Tk) -> Dict[str, Any]:
             raise ValueError("Результат не число")
         return float(val)
 
+    def on_add():
+        insert_text("+")
+        set_status("Вставлен '+'")
+
+    def on_multiply():
+        insert_text("*")
+        set_status("Вставлен '*'")
+
+    def on_modulo():
+        insert_text("%")
+        set_status("Вставлен '%' (остаток)")
+
+    def on_cos():
+        try:
+            val = parse_display_value()
+            res = math.cos(val)
+        except Exception as e:
+            display.delete(0, tk.END)
+            display.insert(0, "Error")
+            set_status(f"cos: {e}")
     def on_subtract():
         insert_text("-")
         set_status("Вставлен '-'")
@@ -88,6 +108,39 @@ def create_ui(root: tk.Tk) -> Dict[str, Any]:
         else:
             display.delete(0, tk.END)
             display.insert(0, str(res))
+        set_status("cos вычислен")
+
+    def on_sqrt():
+        try:
+            val = parse_display_value()
+            if val < 0:
+                raise ValueError("Корень из отрицательного числа")
+            res = math.sqrt(val)
+        except Exception as e:
+            display.delete(0, tk.END)
+            display.insert(0, "Error")
+            set_status(f"√: {e}")
+            return
+        if float(res).is_integer():
+            display.delete(0, tk.END)
+            display.insert(0, str(int(res)))
+        else:
+            display.delete(0, tk.END)
+            display.insert(0, str(res))
+        set_status("√ вычислен")
+
+    def on_ceil():
+        try:
+            val = parse_display_value()
+            res = math.ceil(val)
+        except Exception as e:
+            display.delete(0, tk.END)
+            display.insert(0, "Error")
+            set_status(f"ceil: {e}")
+            return
+        display.delete(0, tk.END)
+        display.insert(0, str(res))
+        set_status("ceil выполнен")
         set_status("sin вычислен")
 
     def on_floor():
@@ -162,6 +215,18 @@ def create_ui(root: tk.Tk) -> Dict[str, Any]:
             font=("Arial", 14),
         )
 
+        if label == "+":
+            btn.config(command=on_add)
+        elif label == "*":
+            btn.config(command=on_multiply)
+        elif label == "%":
+            btn.config(command=on_modulo)
+        elif label == "cos":
+            btn.config(command=on_cos)
+        elif label == "√":
+            btn.config(command=on_sqrt)
+        elif label == "ceil":
+            btn.config(command=on_ceil)
         if label == "-":
             btn.config(command=on_subtract)
         elif label == "/":
@@ -180,7 +245,7 @@ def create_ui(root: tk.Tk) -> Dict[str, Any]:
 
     for c in range(3):
         main_frame.grid_columnconfigure(c, weight=1)
-    for r in range(1, 5):
+    for r in range(1, 3):
         main_frame.grid_rowconfigure(r, weight=1)
 
     def on_enter(event=None):
