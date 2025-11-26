@@ -16,8 +16,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Create virtual environment with Python 3.11
-        run: uv venv --python 3.11
+      - name: Create virtual environment with Python 3.12
+        run: uv venv --python 3.12
 
       - name: Install dependencies and pytest
         run: uv pip install -e . pytest
@@ -35,8 +35,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
-      - name: Create virtual environment with Python 3.11
-        run: uv venv --python 3.11
+      - name: Create virtual environment with Python 3.12
+        run: uv venv --python 3.12
 
       - name: Install dependencies and PyInstaller
         run: uv pip install -e . pyinstaller
@@ -67,8 +67,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
-      - name: Create virtual environment with Python 3.11
-        run: uv venv --python 3.11
+      - name: Create virtual environment with Python 3.12
+        run: uv venv --python 3.12
 
       - name: Install dependencies and stdeb
         run: uv pip install -e . stdeb
