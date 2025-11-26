@@ -11,6 +11,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install system dependencies (tkinter for tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
@@ -22,7 +27,7 @@ jobs:
       - name: Install dependencies and pytest
         run: |
           source .venv/bin/activate
-          uv pip install -e . pytest tkinter
+          uv pip install -e . pytest
 
       - name: Run tests
         run: |
@@ -47,10 +52,10 @@ jobs:
           . .venv/Scripts/activate
           uv pip install -e . pyinstaller
 
-      - name: Build EXE
+      - name: Build EXE (GUI app, no console)
         run: |
           . .venv/Scripts/activate
-          pyinstaller --onefile --console main.py
+          pyinstaller --onefile --windowed main.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
@@ -68,7 +73,7 @@ jobs:
       - name: Install system deps for .deb
         run: |
           sudo apt-get update
-          sudo apt-get install -y dh-python debhelper devscripts python3-all
+          sudo apt-get install -y dh-python debhelper devscripts python3-all python3-tk
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -81,10 +86,10 @@ jobs:
           source .venv/bin/activate
           uv pip install -e . stdeb
 
-      - name: Build .deb package
+      - name: Build .deb package with tkinter dependency
         run: |
           source .venv/bin/activate
-          python setup.py --command-packages=stdeb.command bdist_deb
+          python setup.py --command-packages=stdeb.command bdist_deb --depends=python3-tk
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
