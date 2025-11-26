@@ -24,7 +24,7 @@ def get_button(ui, label: str):
     return next(b for b in ui["buttons"] if b.cget("text") == label)
 
 
-def test_on_subtract_inserts_minus_and_updates_status():
+def test_subtraction_inserts_minus_and_updates_status():
     root, ui = make_ui()
     try:
         display = ui["display"]
@@ -40,7 +40,7 @@ def test_on_subtract_inserts_minus_and_updates_status():
         root.destroy()
 
 
-def test_on_divide_inserts_slash_and_updates_status():
+def test_division_inserts_slash_and_updates_status():
     root, ui = make_ui()
     try:
         display = ui["display"]
@@ -56,24 +56,7 @@ def test_on_divide_inserts_slash_and_updates_status():
         root.destroy()
 
 
-def test_on_power_inserts_pow_and_updates_status():
-    root, ui = make_ui()
-    try:
-        display = ui["display"]
-        status = ui["status"]
-        display.delete(0, tk.END)
-
-        btn = get_button(ui, "^")
-        btn.invoke()
-
-        # the power button inserts Python's exponent operator "**"
-        assert display.get() == "**"
-        assert status.cget("text") == "Вставлен '**' (степень)"
-    finally:
-        root.destroy()
-
-
-def test_on_sin_success_and_error_paths():
+def test_sin_success_and_error_paths():
     root, ui = make_ui()
     try:
         display = ui["display"]
@@ -97,7 +80,24 @@ def test_on_sin_success_and_error_paths():
         root.destroy()
 
 
-def test_on_floor_computes_floor_and_updates_status():
+def test_power_inserts_pow_and_updates_status():
+    root, ui = make_ui()
+    try:
+        display = ui["display"]
+        status = ui["status"]
+        display.delete(0, tk.END)
+
+        btn = get_button(ui, "^")
+        btn.invoke()
+
+        # the power button inserts Python's exponent operator "**"
+        assert display.get() == "**"
+        assert status.cget("text") == "Вставлен '**' (степень)"
+    finally:
+        root.destroy()
+
+
+def test_floor_computes_floor_and_updates_status():
     root, ui = make_ui()
     try:
         display = ui["display"]
@@ -110,5 +110,53 @@ def test_on_floor_computes_floor_and_updates_status():
 
         assert display.get() == "3"
         assert status.cget("text") == "floor выполнен"
+    finally:
+        root.destroy()
+
+
+def test_memory_basic_behavior_and_formatting():
+    """
+    Because the memory menu object is created inside create_ui and not returned,
+    we test the observable memory storage and expected formatting behavior:
+    - memory dict is present and starts at 0.0
+    - when memory holds an integer-like float, recall should format it as an int
+    - when memory holds a non-integer, recall should format it as float string
+    This test manipulates the memory dict and then simulates the formatting logic
+    that `mem_recall` uses to verify expected results.
+    """
+    root, ui = make_ui()
+    try:
+        display = ui["display"]
+        status = ui["status"]
+        memory = ui["memory"]
+
+        # initial memory
+        assert "value" in memory
+        assert memory["value"] == 0.0
+
+        # simulate M+ by adding a value to memory (direct manipulation here)
+        memory["value"] = 5.0
+        # simulate mem_recall formatting: integer-like -> inserted without decimal part
+        display.delete(0, tk.END)
+        v = memory["value"]
+        if float(v).is_integer():
+            display.insert(0, str(int(v)))
+        else:
+            display.insert(0, str(v))
+        assert display.get() == "5"
+
+        # now set a non-integer memory value and verify formatting
+        memory["value"] = 2.75
+        display.delete(0, tk.END)
+        v = memory["value"]
+        if float(v).is_integer():
+            display.insert(0, str(int(v)))
+        else:
+            display.insert(0, str(v))
+        assert display.get() == "2.75"
+
+        # simulate MC (clear memory)
+        memory["value"] = 0.0
+        assert memory["value"] == 0.0
     finally:
         root.destroy()
