@@ -81,6 +81,15 @@ def create_ui(root: tk.Tk):
             display.delete(0, tk.END)
             display.insert(0, "Error")
             set_status(f"cos: {e}")
+            return
+        if float(res).is_integer():
+            display.delete(0, tk.END)
+            display.insert(0, str(int(res)))
+        else:
+            display.delete(0, tk.END)
+            display.insert(0, str(res))
+        set_status("cos вычислен")
+
     def on_subtract():
         insert_text("-")
         set_status("Вставлен '-'")
@@ -108,7 +117,7 @@ def create_ui(root: tk.Tk):
         else:
             display.delete(0, tk.END)
             display.insert(0, str(res))
-        set_status("cos вычислен")
+        set_status("sin вычислен")
 
     def on_sqrt():
         try:
