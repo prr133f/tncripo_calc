@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies and pytest
         run: |
           source .venv/bin/activate
-          uv pip install -e . pytest
+          uv pip install -e . pytest tkinter
 
       - name: Run tests
         run: |
