@@ -96,10 +96,16 @@ jobs:
           # detect project dir: prefer tncripo_calc if exists, otherwise root
           if [ -d "tncripo_calc" ]; then SRC_DIR=tncripo_calc; else SRC_DIR=.; fi
           echo "Using SRC_DIR=${SRC_DIR}"
+          # ensure project dependencies are installed so PyInstaller can find imports
+          python3 -m pip install --upgrade pip setuptools wheel
+          if [ -f "requirements.txt" ]; then python3 -m pip install -r requirements.txt; fi
+          # install the project in editable mode (so PyInstaller can import package modules)
+          python3 -m pip install -e "${SRC_DIR}"
           # remove previous per-project build output
           rm -rf "${SRC_DIR}/dist" "${SRC_DIR}/build" "${SRC_DIR}"/*.spec || true
-          # run PyInstaller as a module and explicitly set output locations (no cd)
-          python3 -m PyInstaller --onefile --name tncripo_calc "${SRC_DIR}/main.py" --distpath "${SRC_DIR}/dist" --workpath "${SRC_DIR}/build" --specpath "${SRC_DIR}"
+          # run PyInstaller referencing the main.py path explicitly and control output locations
+          python3 -m PyInstaller --onefile --name tncripo_calc "${SRC_DIR}/main.py" \
+            --distpath "${SRC_DIR}/dist" --workpath "${SRC_DIR}/build" --specpath "${SRC_DIR}"
           PYR=$?
           echo "PyInstaller exit code: ${PYR}"
           echo "Listing ${SRC_DIR}/dist:"
@@ -112,7 +118,8 @@ jobs:
           # detect project dir like above
           if [ -d "tncripo_calc" ]; then SRC_DIR=tncripo_calc; else SRC_DIR=.; fi
           PKGDIR=$(pwd)/package
-          DIST_DIR="${SRC_DIR}/pyinstaller_dist"
+          # PyInstaller writes into ${SRC_DIR}/dist by default (we set --distpath to that)
+          DIST_DIR="${SRC_DIR}/dist"
           BINPATH="${DIST_DIR}/tncripo_calc"
 
           echo "Checking for built binary at ${BINPATH}"
