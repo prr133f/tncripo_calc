@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python and install deps with uv
         run: |
           uv python install 3.11
-          uv pip install -e .[dev] pytest  # если у вас extra "dev" содержит зависимости для тестов
+          uv pip install --system -e . pytest
 
       - name: Run tests
         run: pytest -q tests
