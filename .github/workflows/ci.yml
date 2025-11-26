@@ -65,7 +65,6 @@ jobs:
 
       - name: Build exe with PyInstaller
         run: |
-          # clean previous builds (remove any per-project dist/build if present)
           if exist tncripo_calc\dist rmdir /s /q tncripo_calc\dist
           if exist tncripo_calc\build rmdir /s /q tncripo_calc\build
           if exist tncripo_calc.spec del /f /q tncripo_calc.spec || true
@@ -109,7 +108,6 @@ jobs:
 
       - name: Build linux standalone binary with PyInstaller
         run: |
-          # remove any previous per-project build output
           rm -rf tncripo_calc/dist tncripo_calc/build tncripo_calc/tncripo_calc.spec || true
           cd tncripo_calc && pyinstaller --onefile --name tncripo_calc main.py
           # debug: list the generated files
@@ -123,9 +121,20 @@ jobs:
           BINNAME=tncripo_calc
           mkdir -p ${PKGDIR}/usr/local/bin
           mkdir -p ${PKGDIR}/DEBIAN
-          # copy binary
-          cp tncripo_calc/dist/${BINNAME} ${PKGDIR}/usr/local/bin/${BINNAME}
-          chmod 755 ${PKGDIR}/usr/local/bin/${BINNAME}
+          # ensure PyInstaller created the binary before copying
+          if [ -f tncripo_calc/dist/${BINNAME} ]; then
+            echo "Found built binary: tncripo_calc/dist/${BINNAME}"
+            cp tncripo_calc/dist/${BINNAME} ${PKGDIR}/usr/local/bin/${BINNAME}
+            chmod 755 ${PKGDIR}/usr/local/bin/${BINNAME}
+          else
+            echo "ERROR: PyInstaller did not produce tncripo_calc/dist/${BINNAME}"
+            echo "Listing tncripo_calc directory for debugging:"
+            ls -la tncripo_calc || true
+            echo "Listing repository root for debugging:"
+            ls -la || true
+            # Fail the job with clear message
+            exit 1
+          fi
           # create simple control file
           cat > ${PKGDIR}/DEBIAN/control <<EOF
           Package: ${PKGNAME}
@@ -136,7 +145,6 @@ jobs:
           Maintainer: CI <ci@example.com>
           Description: tncripo_calc - simple calculator application
           EOF
-          # set ownership and permissions if needed
           sudo chown -R root:root ${PKGDIR} || true
 
       - name: Build .deb with dpkg-deb
