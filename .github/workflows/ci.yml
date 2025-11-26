@@ -2,170 +2,77 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
-    tags: ["v*"]
   pull_request:
-    branches: [main, master]
 
 jobs:
-  tests:
-    name: Run pytest
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version: "3.11"
+          enable-cache: true
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install system deps for headless tkinter (Xvfb)
+      - name: Set up Python and install deps with uv
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
+          uv python install 3.11
+          uv pip install -e .[dev] pytest  # если у вас extra "dev" содержит зависимости для тестов
 
-      - name: Install python dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
-          # Try to install package if pyproject exists
-          if [ -f "pyproject.toml" ]; then pip install -e . || true; fi
-          pip install pytest
-
-      - name: Run tests under X virtual framebuffer
-        run: |
-          xvfb-run -s "-screen 0 1024x768x24" pytest -q tests
+      - name: Run tests
+        run: pytest -q tests
 
   build-exe:
-    name: Build Windows EXE
     runs-on: windows-latest
-    needs: tests
+    needs: test
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
 
-      - name: Install build dependencies
+      - name: Set up Python and install deps
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install pyinstaller
+          uv python install 3.11
+          uv pip install -e . pyinstaller
 
-      - name: Build exe with PyInstaller
-        run: |
-          if exist tncripo_calc\dist rmdir /s /q tncripo_calc\dist
-          if exist tncripo_calc\build rmdir /s /q tncripo_calc\build
-          if exist tncripo_calc.spec del /f /q tncripo_calc.spec || true
-          cd tncripo_calc && pyinstaller --onefile --name tncripo_calc main.py
-        shell: cmd
-
-      - name: List repo and tncripo_calc dist directory (debug)
-        run: |
-          echo "Repo root files:"
-          dir
-          echo "tncripo_calc dist:"
-          dir tncripo_calc\dist
-        shell: cmd
+      - name: Build EXE
+        run: pyinstaller --onefile --console main.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tncripo_calc-windows-exe
-          path: tncripo_calc/dist/tncripo_calc.exe
-          retention-days: 7
+          name: app-windows-exe
+          path: dist/main.exe
 
   build-deb:
-    name: Build Debian package (deb)
     runs-on: ubuntu-latest
-    needs: tests
+    needs: test
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install build dependencies
+      - name: Install system deps for .deb
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential dpkg-dev python3-dev
-          python -m pip install --upgrade pip setuptools wheel
-          pip install pyinstaller
+          sudo apt-get install -y dh-python debhelper devscripts python3-all
 
-      - name: Build linux standalone binary with PyInstaller
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python and install build deps
         run: |
-          rm -rf tncripo_calc/dist tncripo_calc/build tncripo_calc/tncripo_calc.spec || true
-          cd tncripo_calc && pyinstaller --onefile --name tncripo_calc main.py
-          # debug: list the generated files
-          ls -lh tncripo_calc/dist || true
+          uv python install 3.11
+          uv pip install -e . stdeb
 
-      - name: Prepare deb package layout
-        run: |
-          VERSION=${{ github.run_number }}-1
-          PKGNAME=tncripo-calc
-          PKGDIR=package
-          BINNAME=tncripo_calc
-          mkdir -p ${PKGDIR}/usr/local/bin
-          mkdir -p ${PKGDIR}/DEBIAN
-          # ensure PyInstaller created the binary before copying
-          if [ -f tncripo_calc/dist/${BINNAME} ]; then
-            echo "Found built binary: tncripo_calc/dist/${BINNAME}"
-            cp tncripo_calc/dist/${BINNAME} ${PKGDIR}/usr/local/bin/${BINNAME}
-            chmod 755 ${PKGDIR}/usr/local/bin/${BINNAME}
-          else
-            echo "ERROR: PyInstaller did not produce tncripo_calc/dist/${BINNAME}"
-            echo "Listing tncripo_calc directory for debugging:"
-            ls -la tncripo_calc || true
-            echo "Listing repository root for debugging:"
-            ls -la || true
-            # Fail the job with clear message
-            exit 1
-          fi
-          # create simple control file
-          cat > ${PKGDIR}/DEBIAN/control <<EOF
-          Package: ${PKGNAME}
-          Version: ${VERSION}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: CI <ci@example.com>
-          Description: tncripo_calc - simple calculator application
-          EOF
-          sudo chown -R root:root ${PKGDIR} || true
+      - name: Build .deb package
+        run: python setup.py --command-packages=stdeb.command bdist_deb
 
-      - name: Build .deb with dpkg-deb
-        run: |
-          VERSION=${{ github.run_number }}-1
-          PKGDIR=package
-          OUT=tncripo_calc_${VERSION}_amd64.deb
-          dpkg-deb --build ${PKGDIR} ${OUT}
-          ls -lh ${OUT}
-          # move artifacts to known location
-          mkdir -p out
-          mv ${OUT} out/
-          cp tncripo_calc/dist/tncripo_calc out/ || true
-          # debug: show created artifacts
-          ls -lh out || true
-          # also create a stable deb name for release attachment
-          if [ -f out/${OUT} ]; then cp out/${OUT} out/tncripo_calc.deb; fi
-
-      - name: Upload DEB and Linux binary artifacts
+      - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tncripo_calc-linux-artifacts
-          path: out/
-          retention-days: 7
+          name: app-ubuntu-deb
+          path: deb_dist/*.deb
