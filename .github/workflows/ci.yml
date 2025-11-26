@@ -70,66 +70,108 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install system deps for .deb
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system deps for .deb build
         run: |
           sudo apt-get update
-          sudo apt-get install -y dh-python debhelper devscripts python3-all python3-tk
+          sudo apt-get install -y build-essential dpkg-dev python3-tk python3-pip unzip
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-
-      - name: Create virtual environment with Python 3.12
-        run: uv venv --python 3.12
-
-      - name: Install build tools
+      - name: Install PyInstaller
         run: |
-          source .venv/bin/activate
-          uv pip install -e . stdeb
+          python3 -m pip install --upgrade pip setuptools wheel
+          python3 -m pip install pyinstaller
 
-      # Создаём временный setup.py на основе pyproject.toml с помощью setuptools
-      - name: Generate setup.py for stdeb using built-in tomllib
+      - name: Build linux standalone binary with PyInstaller
         run: |
-          source .venv/bin/activate
-          python -c "
-          import tomllib
-          from setuptools import setup
+          # ensure clean per-project build directories
+          rm -rf tncripo_calc/dist tncripo_calc/build tncripo_calc/*.spec || true
+          # run pyinstaller inside project dir so it finds main.py and resources
+          cd tncripo_calc
+          pyinstaller --onefile --name tncripo_calc main.py
+          echo "PyInstaller exit code: $?"
+          echo "Listing tncripo_calc/dist:"
+          ls -la dist || true
+        shell: bash
 
-          with open('pyproject.toml', 'rb') as f:
-            pyproject = tomllib.load(f)
-
-          proj = pyproject['project']
-          setup_kwargs = {
-            'name': proj['name'],
-            'version': proj['version'],
-            'python_requires': proj.get('requires-python'),
-            'install_requires': proj.get('dependencies', []),
-          }
-
-          scripts = {}
-          if 'scripts' in proj:
-            scripts.update(proj['scripts'])
-            if 'gui-scripts' in proj:
-              scripts.update(proj['gui-scripts'])
-
-              if scripts:
-                # stdeb only understands console_scripts, so we map both to it
-                setup_kwargs['entry_points'] = {
-                  'console_scripts': [f'{k}={v}' for k, v in scripts.items()]
-                }
-
-          setup(**setup_kwargs)
-          " > setup.py
-
-      - name: Copy stdeb.cfg
-        run: cp deploy/stdeb.cfg .
-
-      - name: Build .deb package
+      - name: Prepare deb package layout for GUI app
         run: |
-          source .venv/bin/activate
-          python setup.py --command-packages=stdeb.command bdist_deb
+          set -e
+          PKGDIR=$(pwd)/package
+          BINPATH=$(pwd)/tncripo_calc/dist/tncripo_calc
 
-      - name: Upload DEB artifact
+          echo "Checking for built binary at ${BINPATH}"
+          if [ ! -f "${BINPATH}" ]; then
+            echo "ERROR: PyInstaller did not produce binary at ${BINPATH}"
+            echo "Contents of tncripo_calc/dist:"
+            ls -la tncripo_calc/dist || true
+            exit 1
+          fi
+
+          rm -rf "${PKGDIR}"
+          mkdir -p "${PKGDIR}/usr/local/bin"
+          mkdir -p "${PKGDIR}/usr/share/applications"
+          mkdir -p "${PKGDIR}/usr/share/doc/tncripo-calc"
+
+          # copy the PyInstaller-built binary
+          cp "${BINPATH}" "${PKGDIR}/usr/local/bin/tncripo_calc"
+          chmod 755 "${PKGDIR}/usr/local/bin/tncripo_calc"
+
+          # create a .desktop file so the GUI shows in menus
+          cat > "${PKGDIR}/usr/share/applications/tncripo-calc.desktop" <<EOF
+          [Desktop Entry]
+          Name=tncripo Calc
+          Comment=Simple calculator (tncripo)
+          Exec=/usr/local/bin/tncripo_calc
+          Icon=utilities-calculator
+          Terminal=false
+          Type=Application
+          Categories=Utility;Calculator;
+          EOF
+
+          # add a simple README
+          echo "tncripo_calc - GUI calculator" > "${PKGDIR}/usr/share/doc/tncripo-calc/README.txt"
+
+          # control file for the .deb
+          VERSION=${{ github.run_number }}-1
+          PKGNAME=tncripo-calc
+          mkdir -p "${PKGDIR}/DEBIAN"
+          cat > "${PKGDIR}/DEBIAN/control" <<EOF
+          Package: ${PKGNAME}
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: CI <ci@example.com>
+          Description: tncripo_calc - simple tkinter GUI calculator (PyInstaller binary)
+          Depends: libc6 (>= 2.17)
+          EOF
+
+          # ensure permissions and ownership (chown may need sudo)
+          chmod -R 755 "${PKGDIR}"
+          sudo chown -R root:root "${PKGDIR}" || true
+        shell: bash
+
+      - name: Build .deb with dpkg-deb
+        run: |
+          set -e
+          VERSION=${{ github.run_number }}-1
+          PKGDIR=package
+          OUT=tncripo_calc_${VERSION}_amd64.deb
+          dpkg-deb --build "${PKGDIR}" "${OUT}"
+          ls -lh "${OUT}"
+          mkdir -p out
+          mv "${OUT}" out/
+          cp "${PKGDIR}/usr/local/bin/tncripo_calc" out/ || true
+          ls -lh out || true
+        shell: bash
+
+      - name: Upload DEB and Linux binary artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-ubuntu-deb
-          path: deb_dist/*.deb
+          name: tncripo_calc-linux-artifacts
+          path: out/
+          retention-days: 7
