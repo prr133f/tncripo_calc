@@ -29,7 +29,7 @@ jobs:
           source .venv/bin/activate
           uv pip install -e . pytest
 
-      - name: Run tests with virtual display
+      - name: Run tests in virtual display
         run: |
           source .venv/bin/activate
           xvfb-run -a pytest -q tests
@@ -52,7 +52,7 @@ jobs:
           . .venv/Scripts/activate
           uv pip install -e . pyinstaller
 
-      - name: Build EXE (GUI app, no console)
+      - name: Build EXE (GUI app)
         run: |
           . .venv/Scripts/activate
           pyinstaller --onefile --windowed main.py
@@ -81,15 +81,44 @@ jobs:
       - name: Create virtual environment with Python 3.12
         run: uv venv --python 3.12
 
-      - name: Install dependencies and stdeb
+      - name: Install build tools
         run: |
           source .venv/bin/activate
           uv pip install -e . stdeb
 
-      - name: Build .deb package with tkinter dependency
+      # Создаём временный setup.py на основе pyproject.toml с помощью setuptools
+      - name: Generate setup.py for stdeb
         run: |
           source .venv/bin/activate
-          python setup.py --command-packages=stdeb.command bdist_deb --depends=python3-tk
+          python -c "
+          from setuptools.config.setupcfg import read_configuration
+          from setuptools import setup
+          import toml
+          pyproject = toml.load('pyproject.toml')
+          proj = pyproject['project']
+          setup_kwargs = {
+              'name': proj['name'],
+              'version': proj['version'],
+              'python_requires': proj.get('requires-python'),
+              'install_requires': proj.get('dependencies', []),
+          }
+          scripts = {}
+          if 'scripts' in proj:
+              scripts.update(proj['scripts'])
+          if 'gui-scripts' in proj:
+              scripts.update(proj['gui-scripts'])
+          if scripts:
+              setup_kwargs['entry_points'] = {'console_scripts': [f'{k}={v}' for k, v in scripts.items()]}
+          setup(**setup_kwargs)
+          " > setup.py
+
+      - name: Copy stdeb.cfg
+        run: cp deploy/stdeb.cfg .
+
+      - name: Build .deb package
+        run: |
+          source .venv/bin/activate
+          python setup.py --command-packages=stdeb.command bdist_deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
